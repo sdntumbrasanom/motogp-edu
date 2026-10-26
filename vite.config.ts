@@ -5,6 +5,9 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    // TAMBAHKAN BARIS INI
+    base: '/motogp-edu/', 
+    
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
