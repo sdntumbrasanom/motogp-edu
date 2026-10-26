@@ -1,0 +1,6 @@
+{
+  "name": "Apex MotoGP: Kuis Balap Edukasi 3D",
+  "description": "Game balap motor MotoGP 3D interaktif edukatif dengan mode Individu & Battle 2 Rider, motor balap MotoGP spektakuler dengan animasi rider miring (lean angle), kuis terintegrasi Google Spreadsheet guru, kustomisasi motor balap, dan leaderboard global.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

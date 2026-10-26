@@ -1,0 +1,68 @@
+import { CircuitId, CircuitSpecs } from '../types/game';
+
+export const MOTOGP_CIRCUITS: CircuitSpecs[] = [
+  {
+    id: 'mandalika',
+    name: 'Pertamina Mandalika International Circuit',
+    country: 'Lombok, Indonesia',
+    countryCode: 'ID',
+    flag: '🇮🇩',
+    lengthMeters: 4310,
+    description: 'Sirkuit jalan raya tepi laut eksotis dengan motif tenun ikat Sasak Subahnale pada area runoff dan panorama perbukitan Lombok.',
+    turnHighlight: 'Tikungan 10 & 16 Cepat Tepi Samudra Hindia',
+    curbStyle: 'mandalika_batik',
+    defaultWeather: 'cerah',
+    accentColor: '#06b6d4',
+    skyColor: 0x38bdf8,
+    fogColor: 0xbae6fd,
+  },
+  {
+    id: 'mugello',
+    name: 'Autodromo Internazionale del Mugello',
+    country: 'Scarperia e San Piero, Italia',
+    countryCode: 'IT',
+    flag: '🇮🇹',
+    lengthMeters: 5245,
+    description: 'Sirkuit legendaris di lembah Tuscany dengan trek lurus San Donato 360+ km/h dan sekuens tikungan Arrabbiata 1 & 2.',
+    turnHighlight: 'Arrabbiata 1 & 2 Buta Berkecepatan Tinggi',
+    curbStyle: 'mugello_tricolore',
+    defaultWeather: 'cerah',
+    accentColor: '#16a34a',
+    skyColor: 0x60a5fa,
+    fogColor: 0x93c5fd,
+  },
+  {
+    id: 'motegi',
+    name: 'Mobility Resort Motegi (Twin Ring)',
+    country: 'Tochigi, Jepang',
+    countryCode: 'JP',
+    flag: '🇯🇵',
+    lengthMeters: 4801,
+    description: 'Kandang pabrikan motor Jepang dengan karakter stop-and-go berat, pengereman ekstrem 90 derajat Downhill, dan jembatan gantry megah.',
+    turnHighlight: 'Downhill 90° Corner Pengereman Keras',
+    curbStyle: 'motegi_standard',
+    defaultWeather: 'kabut',
+    accentColor: '#ef4444',
+    skyColor: 0x475569,
+    fogColor: 0x64748b,
+  },
+  {
+    id: 'silverstone',
+    name: 'Silverstone Grand Prix Circuit',
+    country: 'Northamptonshire, Inggris',
+    countryCode: 'GB',
+    flag: '🇬🇧',
+    lengthMeters: 5891,
+    description: 'Salah satu sirkuit tercepat di kalender MotoGP dunia dengan kompleks Maggotts, Becketts, Chapel serta cuaca balap basah dinamis.',
+    turnHighlight: 'Maggotts-Becketts-Chapel Super Fast Sweep',
+    curbStyle: 'silverstone_national',
+    defaultWeather: 'hujan',
+    accentColor: '#3b82f6',
+    skyColor: 0x1e293b,
+    fogColor: 0x334155,
+  },
+];
+
+export function getCircuitById(id: CircuitId): CircuitSpecs {
+  return MOTOGP_CIRCUITS.find((c) => c.id === id) || MOTOGP_CIRCUITS[0];
+}
