@@ -196,6 +196,18 @@ function doGet(e) {
     var sheet = getOrCreateTokenSheet();
     var action = (e && e.parameter && e.parameter.action) || 'getRoom';
     var token = (e && e.parameter && e.parameter.token) || '';
+    var callback = (e && e.parameter && e.parameter.callback) || '';
+
+    // Allow saveRoom via GET for environments where POST is constrained
+    if (action === 'saveRoom' && e && e.parameter && e.parameter.data) {
+      try {
+        var contents = JSON.parse(decodeURIComponent(e.parameter.data));
+        var saveResult = saveRoomToSheet(sheet, contents);
+        return formatOutput({ status: 'success', token: saveResult }, callback);
+      } catch(saveErr) {
+        return formatOutput({ status: 'error', message: saveErr.toString() }, callback);
+      }
+    }
 
     if (action === 'getAllRooms') {
       var data = sheet.getDataRange().getValues();
@@ -217,8 +229,7 @@ function doGet(e) {
           } catch(err) {}
         }
       }
-      return ContentService.createTextOutput(JSON.stringify({ status: 'success', rooms: rooms }))
-        .setMimeType(ContentService.MimeType.JSON);
+      return formatOutput({ status: 'success', rooms: rooms }, callback);
     }
 
     // Default: find room by token
@@ -237,17 +248,14 @@ function doGet(e) {
             createdAt: Number(data[i][6]) || Date.now(),
             updatedAt: Number(data[i][7]) || Date.now()
           };
-          return ContentService.createTextOutput(JSON.stringify({ status: 'success', room: room }))
-            .setMimeType(ContentService.MimeType.JSON);
+          return formatOutput({ status: 'success', room: room }, callback);
         }
       }
     }
 
-    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Token tidak ditemukan di database' }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return formatOutput({ status: 'error', message: 'Token tidak ditemukan di database' }, callback);
   } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return formatOutput({ status: 'error', message: err.toString() }, callback);
   } finally {
     lock.releaseLock();
   }
@@ -260,46 +268,57 @@ function doPost(e) {
     var rawData = e.postData.contents;
     var contents = JSON.parse(rawData);
     var sheet = getOrCreateTokenSheet();
-
-    var token = String(contents.token || '').toUpperCase().trim();
-    if (!token) {
-      throw new Error('Token wajib diisi');
-    }
-
-    var data = sheet.getDataRange().getValues();
-    var rowIndex = -1;
-    for (var i = 1; i < data.length; i++) {
-      if (String(data[i][0]).toUpperCase().trim() === token) {
-        rowIndex = i + 1;
-        break;
-      }
-    }
-
-    var rowData = [
-      token,
-      contents.title || '',
-      contents.teacherName || '',
-      contents.teacherPhone || '',
-      contents.spreadsheetUrl || '',
-      JSON.stringify(contents.questions || []),
-      contents.createdAt || Date.now(),
-      Date.now()
-    ];
-
-    if (rowIndex > 0) {
-      sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
-    } else {
-      sheet.appendRow(rowData);
-    }
-
-    return ContentService.createTextOutput(JSON.stringify({ status: 'success', token: token }))
-      .setMimeType(ContentService.MimeType.JSON);
+    var savedToken = saveRoomToSheet(sheet, contents);
+    return formatOutput({ status: 'success', token: savedToken }, '');
   } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return formatOutput({ status: 'error', message: err.toString() }, '');
   } finally {
     lock.releaseLock();
   }
+}
+
+function saveRoomToSheet(sheet, contents) {
+  var token = String(contents.token || '').toUpperCase().trim();
+  if (!token) {
+    throw new Error('Token wajib diisi');
+  }
+
+  var data = sheet.getDataRange().getValues();
+  var rowIndex = -1;
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).toUpperCase().trim() === token) {
+      rowIndex = i + 1;
+      break;
+    }
+  }
+
+  var rowData = [
+    token,
+    contents.title || '',
+    contents.teacherName || '',
+    contents.teacherPhone || '',
+    contents.spreadsheetUrl || '',
+    JSON.stringify(contents.questions || []),
+    contents.createdAt || Date.now(),
+    Date.now()
+  ];
+
+  if (rowIndex > 0) {
+    sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
+  } else {
+    sheet.appendRow(rowData);
+  }
+  return token;
+}
+
+function formatOutput(dataObj, callback) {
+  var jsonStr = JSON.stringify(dataObj);
+  if (callback && typeof callback === 'string') {
+    return ContentService.createTextOutput(callback + '(' + jsonStr + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(jsonStr)
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function getOrCreateTokenSheet() {
@@ -316,7 +335,8 @@ class SheetService {
   // Get configured Google Apps Script Web App URL
   public getAppsScriptUrl(): string {
     try {
-      return localStorage.getItem(APPS_SCRIPT_STORAGE_KEY) || '';
+      const url = localStorage.getItem(APPS_SCRIPT_STORAGE_KEY) || '';
+      return url.trim();
     } catch {
       return '';
     }
@@ -329,6 +349,11 @@ class SheetService {
     } catch (e) {
       console.warn('Failed to save Apps Script URL to localStorage', e);
     }
+  }
+
+  // Check if cloud database is configured
+  public isCloudConnected(): boolean {
+    return Boolean(this.getAppsScriptUrl());
   }
 
   // Get all saved teacher rooms
@@ -351,32 +376,49 @@ class SheetService {
   }
 
   // Save room locally and sync to Google Apps Script database if configured
-  public saveRoom(room: TeacherRoom): void {
+  public async saveRoom(room: TeacherRoom): Promise<boolean> {
     const rooms = this.getRooms();
     rooms[room.token.toUpperCase().trim()] = room;
-    localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(rooms));
+    try {
+      localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(rooms));
+    } catch (e) {
+      console.warn('Could not save room to localStorage:', e);
+    }
 
-    // Asynchronously push to Google Apps Script database
+    // Push to Google Apps Script database if configured
     const appsScriptUrl = this.getAppsScriptUrl();
     if (appsScriptUrl) {
-      this.syncRoomToAppsScript(room, appsScriptUrl).catch((err) => {
-        console.warn('Could not sync room to Apps Script database:', err);
-      });
+      return await this.syncRoomToAppsScript(room, appsScriptUrl);
     }
+    return true;
   }
 
-  // Sync room to Google Apps Script Web App
+  // Sync room to Google Apps Script Web App (handles cross-origin redirects)
   public async syncRoomToAppsScript(room: TeacherRoom, url: string): Promise<boolean> {
+    const targetUrl = url.trim();
+    if (!targetUrl) return false;
+
+    // Method 1: POST via text/plain (avoids preflight CORS error in Google Apps Script)
     try {
-      await fetch(url, {
+      await fetch(targetUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(room),
-        mode: 'no-cors', // standard cross-origin submission to Apps Script
+        mode: 'no-cors',
       });
       return true;
     } catch (e) {
-      console.warn('Sync to Apps Script error:', e);
+      console.warn('POST sync to Apps Script error, attempting GET fallback:', e);
+    }
+
+    // Method 2: GET fallback if payload size is modest
+    try {
+      const payload = encodeURIComponent(JSON.stringify(room));
+      const getUrl = `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}action=saveRoom&data=${payload}`;
+      await fetch(getUrl, { mode: 'no-cors' });
+      return true;
+    } catch (err) {
+      console.warn('Fallback sync failed:', err);
       return false;
     }
   }
@@ -386,23 +428,113 @@ class SheetService {
     const appsScriptUrl = this.getAppsScriptUrl();
     if (!appsScriptUrl) return null;
 
+    const cleanToken = token.toUpperCase().trim();
+    const fetchUrl = `${appsScriptUrl}${appsScriptUrl.includes('?') ? '&' : '?'}action=getRoom&token=${encodeURIComponent(cleanToken)}`;
+
+    // Try fetch with standard redirect follow
     try {
-      const fetchUrl = `${appsScriptUrl}${appsScriptUrl.includes('?') ? '&' : '?'}action=getRoom&token=${encodeURIComponent(token.toUpperCase().trim())}`;
-      const res = await fetch(fetchUrl);
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (data && data.status === 'success' && data.room) {
-        // Cache to local storage
-        const room: TeacherRoom = data.room;
+      const res = await fetch(fetchUrl, {
+        method: 'GET',
+        redirect: 'follow',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.status === 'success' && data.room) {
+          const room: TeacherRoom = data.room;
+          const rooms = this.getRooms();
+          rooms[room.token.toUpperCase().trim()] = room;
+          localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(rooms));
+          return room;
+        }
+      }
+    } catch (e) {
+      console.warn('Direct fetch from Apps Script error, trying JSONP fallback:', e);
+    }
+
+    // JSONP fallback (bypasses browser CORS restrictions completely)
+    try {
+      const jsonpData = await this.fetchViaJsonp(fetchUrl);
+      if (jsonpData && jsonpData.status === 'success' && jsonpData.room) {
+        const room: TeacherRoom = jsonpData.room;
         const rooms = this.getRooms();
         rooms[room.token.toUpperCase().trim()] = room;
         localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(rooms));
         return room;
       }
-    } catch (e) {
-      console.warn('Fetch room from Apps Script error:', e);
+    } catch (err) {
+      console.warn('JSONP fetch error:', err);
     }
+
     return null;
+  }
+
+  // JSONP helper for cross-origin browser compatibility with Google Apps Script
+  private fetchViaJsonp(url: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const callbackName = `__motogp_cb_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+      const separator = url.includes('?') ? '&' : '?';
+      const scriptUrl = `${url}${separator}callback=${callbackName}`;
+
+      const script = document.createElement('script');
+      script.src = scriptUrl;
+      script.async = true;
+
+      const timeoutId = setTimeout(() => {
+        cleanup();
+        reject(new Error('JSONP request timed out'));
+      }, 7000);
+
+      const cleanup = () => {
+        clearTimeout(timeoutId);
+        if (script.parentNode) script.parentNode.removeChild(script);
+        delete (window as any)[callbackName];
+      };
+
+      (window as any)[callbackName] = (data: any) => {
+        cleanup();
+        resolve(data);
+      };
+
+      script.onerror = () => {
+        cleanup();
+        reject(new Error('Failed to load JSONP script'));
+      };
+
+      document.body.appendChild(script);
+    });
+  }
+
+  // Fetch all rooms from cloud database
+  public async fetchAllRoomsFromAppsScript(): Promise<Record<string, TeacherRoom>> {
+    const appsScriptUrl = this.getAppsScriptUrl();
+    if (!appsScriptUrl) return this.getRooms();
+
+    const fetchUrl = `${appsScriptUrl}${appsScriptUrl.includes('?') ? '&' : '?'}action=getAllRooms`;
+
+    try {
+      const res = await fetch(fetchUrl, { redirect: 'follow' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.status === 'success' && data.rooms) {
+          const rooms = { ...this.getRooms(), ...data.rooms };
+          localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(rooms));
+          return rooms;
+        }
+      }
+    } catch {
+      // try jsonp
+      try {
+        const data = await this.fetchViaJsonp(fetchUrl);
+        if (data && data.status === 'success' && data.rooms) {
+          const rooms = { ...this.getRooms(), ...data.rooms };
+          localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(rooms));
+          return rooms;
+        }
+      } catch (err) {
+        console.warn('Could not fetch all rooms from cloud:', err);
+      }
+    }
+    return this.getRooms();
   }
 
   // Delete room

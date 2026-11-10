@@ -64,6 +64,13 @@ export const GameSetupModal: React.FC<GameSetupModalProps> = ({
   const [circuitId, setCircuitId] = useState<CircuitId>(initialCircuit);
   const [weather, setWeather] = useState<WeatherType>(initialWeather);
 
+  // Sync state if initialToken changes when modal opens
+  React.useEffect(() => {
+    if (initialToken) {
+      setToken(initialToken);
+    }
+  }, [initialToken, isOpen]);
+
   // Player 1 configuration (Solo / Battle Layar Kiri)
   const [p1Name, setP1Name] = useState<string>(mode === 'solo' ? 'Rider Juara' : 'Rider 1 (Kiri)');
   const [p1Model, setP1Model] = useState<CarModelType>('ducati');

@@ -116,7 +116,7 @@ export const TeacherPortalModal: React.FC<TeacherPortalModalProps> = ({
         updatedAt: Date.now(),
       };
 
-      sheetService.saveRoom(newRoom);
+      const isCloudSynced = await sheetService.saveRoom(newRoom);
       try {
         localStorage.setItem(
           'apex_teacher_profile',
@@ -128,9 +128,12 @@ export const TeacherPortalModal: React.FC<TeacherPortalModalProps> = ({
       } catch {}
 
       setPreviewQuestions(parsedQuestions);
+      const hasCloud = sheetService.isCloudConnected();
       setStatusMessage({
         type: 'success',
-        text: `Berhasil menyimpan soal! Token baru berhasil dibuat: ${generatedToken} (${parsedQuestions.length} soal)`,
+        text: hasCloud
+          ? `✅ Berhasil! Token [${generatedToken}] tersimpan di Browser dan Database Google Spreadsheet Cloud! Siswa di perangkat mana pun dapat langsung memasukkan token ini untuk bermain.`
+          : `✅ Token [${generatedToken}] berhasil dibuat (${parsedQuestions.length} soal)! ⚠️ PERHATIAN: Agar token dapat dibuka di HP/komputer siswa yang berbeda, hubungkan Google Apps Script di tab "Database Multi-Perangkat".`,
       });
       setTitle('');
       setSheetUrl('');
@@ -427,6 +430,24 @@ export const TeacherPortalModal: React.FC<TeacherPortalModalProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* Notice regarding multi-device sync */}
+                {!appsScriptUrl && (
+                  <div className="bg-amber-950/40 border border-amber-500/50 p-3.5 rounded-xl mb-4 flex items-start gap-3">
+                    <Database className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="text-xs text-amber-200">
+                      <strong className="block text-white font-bold mb-0.5">💡 Tips Agar Soal & Token Bisa Dibuka di HP Siswa:</strong>
+                      Token yang dibuat di perangkat ini dapat langsung dibuka di HP/laptop siswa jika Anda menghubungkan <strong>Google Spreadsheet Database</strong>.
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('database')}
+                        className="ml-1 text-cyan-300 font-bold underline hover:text-white cursor-pointer inline-flex items-center gap-1"
+                      >
+                        Buka Tab Database Apps Script ➔
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <form onSubmit={handleSaveSheet} className="flex flex-col gap-4">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
