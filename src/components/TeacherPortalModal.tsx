@@ -175,11 +175,81 @@ export const TeacherPortalModal: React.FC<TeacherPortalModalProps> = ({
     const blob = new Blob([SPREADSHEET_TEMPLATE_INFO.sampleCsv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'template_soal_balap_motogp.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
+
+  const handleTestConnection = async () => {
+    const url = appsScriptUrl.trim();
+    if (!url) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Masukkan URL Aplikasi Web Google Apps Script terlebih dahulu.',
+      });
+      return;
+    }
+
+    if (!url.startsWith('https://script.google.com/macros/s/')) {
+      setStatusMessage({
+        type: 'error',
+        text: 'URL harus berupa URL Web App Google Apps Script yang diawali dengan "https://script.google.com/macros/s/" dan biasanya diakhiri dengan "/exec".',
+      });
+      return;
+    }
+
+    setIsTestingConnection(true);
+    setStatusMessage(null);
+
+    try {
+      // 1. Simpan URL dulu
+      sheetService.setAppsScriptUrl(url);
+
+      // 2. Kirim ping test token
+      const testToken = 'TEST-PING';
+      const testRoom: TeacherRoom = {
+        token: testToken,
+        title: 'Uji Koneksi Database',
+        teacherName: 'Sistem Uji',
+        spreadsheetUrl: '',
+        questions: [
+          {
+            id: 't-1',
+            text: 'Tes koneksi database Google Spreadsheet',
+            correctAnswer: 'Berhasil',
+            options: ['Berhasil', 'Gagal', 'Pending', 'Error'],
+          },
+        ],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      const syncOk = await sheetService.syncRoomToAppsScript(testRoom, url);
+      // Coba fetch balik
+      const fetched = await sheetService.fetchRoomFromAppsScript(testToken);
+
+      if (fetched || syncOk) {
+        setStatusMessage({
+          type: 'success',
+          text: '🎉 KONEKSI BERHASIL! Database Google Spreadsheet Anda terhubung aktif! Token dan soal akan tersimpan otomatis dan bisa dibuka di semua HP/laptop siswa.',
+        });
+      } else {
+        setStatusMessage({
+          type: 'error',
+          text: '⚠️ Respon belum diterima. Pastikan saat Deploy di Apps Script: "Who has access (Siapa yang memiliki akses)" dipilih "Anyone (Siapa saja)".',
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStatusMessage({
+        type: 'error',
+        text: 'Gagal menghubungi Apps Script: ' + msg + '. Pastikan URL berakhiran /exec dan akses disetel "Anyone".',
+      });
+    } finally {
+      setIsTestingConnection(false);
+    }
   };
 
   const handleSaveAppsScriptUrl = (e: React.FormEvent) => {
@@ -188,8 +258,8 @@ export const TeacherPortalModal: React.FC<TeacherPortalModalProps> = ({
     setStatusMessage({
       type: 'success',
       text: appsScriptUrl.trim()
-        ? 'URL Database Google Apps Script berhasil disimpan! Token soal kini dapat diakses siswa dari perangkat mana pun.'
-        : 'URL Database Google Apps Script telah dihapus. Menggunakan penyimpanan lokal.',
+        ? 'URL Database Google Apps Script berhasil disimpan! Silakan klik tombol "Tes Koneksi Database" untuk memverifikasi.'
+        : 'URL Database Google Apps Script telah dihapus. Menggunakan mode penyimpanan lokal.',
     });
   };
 
@@ -682,12 +752,24 @@ export const TeacherPortalModal: React.FC<TeacherPortalModalProps> = ({
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                    <button
-                      type="submit"
-                      className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs tracking-wider uppercase transition shadow-lg shadow-cyan-600/30 cursor-pointer flex items-center gap-2"
-                    >
-                      <Check className="w-4 h-4" /> Simpan URL Database
-                    </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="submit"
+                        className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs tracking-wider uppercase transition shadow-lg shadow-cyan-600/30 cursor-pointer flex items-center gap-2"
+                      >
+                        <Check className="w-4 h-4" /> Simpan URL Database
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleTestConnection}
+                        disabled={isTestingConnection}
+                        className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs tracking-wider uppercase transition shadow cursor-pointer flex items-center gap-2"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isTestingConnection ? 'animate-spin' : ''}`} />
+                        <span>{isTestingConnection ? 'Menguji Koneksi...' : '⚡ Tes Koneksi Database'}</span>
+                      </button>
+                    </div>
 
                     {roomList.length > 0 && appsScriptUrl.trim() && (
                       <button

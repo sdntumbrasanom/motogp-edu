@@ -2,6 +2,14 @@ import { Question, TeacherRoom } from '../types/game';
 
 // Storage keys
 const ROOMS_STORAGE_KEY = 'apex_racer_teacher_rooms_v1';
+export const APPS_SCRIPT_STORAGE_KEY = 'https://script.google.com/macros/s/AKfycbysh2aWp6i82VQ3igZxiJB2mrpHugRW2mSFvXnRdn8AOEzBhzVrmQzWSok_lmx3ovebuQ/exec';
+
+/**
+ * DEFAULT_APPS_SCRIPT_URL:
+ * Anda dapat menempelkan URL Web App Google Apps Script (/exec) Anda langsung di sini
+ * atau memasukkannya melalui menu "Portal Guru" > tab "Database Apps Script".
+ */
+export const DEFAULT_APPS_SCRIPT_URL = '';
 
 // Default Question Banks for immediate play without needing custom sheets
 export const DEFAULT_QUESTION_PACKS: Record<string, { title: string; teacher: string; questions: Question[] }> = {
@@ -170,8 +178,6 @@ Sistem pengereman anti-terkunci modern dikenal dengan singkatan...,ABS (Anti-loc
 Jika mobil melaju 120 km/jam selama 30 menit berapa jarak tempuhnya?,60 km,40 km,80 km,120 km`,
 };
 
-export const APPS_SCRIPT_STORAGE_KEY = 'apex_apps_script_url';
-
 export const GOOGLE_APPS_SCRIPT_SAMPLE_CODE = `/**
  * GOOGLE APPS SCRIPT DATABASE - APEX RACER EDUKASI
  * Multi-Device Database via Google Spreadsheet
@@ -335,10 +341,10 @@ class SheetService {
   // Get configured Google Apps Script Web App URL
   public getAppsScriptUrl(): string {
     try {
-      const url = localStorage.getItem(APPS_SCRIPT_STORAGE_KEY) || '';
+      const url = localStorage.getItem(APPS_SCRIPT_STORAGE_KEY) || DEFAULT_APPS_SCRIPT_URL || '';
       return url.trim();
     } catch {
-      return '';
+      return (DEFAULT_APPS_SCRIPT_URL || '').trim();
     }
   }
 
