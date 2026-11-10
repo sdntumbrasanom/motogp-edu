@@ -596,7 +596,7 @@ export default function App() {
               </div>
               <div>
                 <span className="font-mono font-black text-[10px] text-cyan-400 tracking-wider capitalize block leading-tight">
-                  Developed By Elvin Wijayanti
+                  Developed By Elvin Wijayanti, S.Pd. SD
                 </span>
                 <span className="text-[11px] font-bold text-slate-200 leading-none">Apex MotoGP Edu</span>
               </div>
