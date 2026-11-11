@@ -126,11 +126,23 @@ export const RacingCanvas: React.FC<RacingCanvasProps> = ({
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = weather === 'cerah' ? 1.25 : 1.05;
-    renderer.setPixelRatio(isHeadless ? 1 : Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(container.clientWidth, container.clientHeight);
+    const maxDpr = mode === 'battle' ? 1.25 : 1.5;
+    renderer.setPixelRatio(isHeadless ? 1 : Math.min(window.devicePixelRatio, maxDpr));
+    renderer.setSize(container.clientWidth || window.innerWidth, container.clientHeight || window.innerHeight);
     renderer.shadowMap.enabled = !isHeadless;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
+
+    // Prevent browser from discarding context on heavy multi-player load
+    const handleContextLost = (e: Event) => {
+      e.preventDefault();
+      console.warn('WebGL context lost, preventing browser reset...');
+    };
+    const handleContextRestored = () => {
+      console.log('WebGL context restored successfully.');
+    };
+    renderer.domElement.addEventListener('webglcontextlost', handleContextLost, false);
+    renderer.domElement.addEventListener('webglcontextrestored', handleContextRestored, false);
 
     const gl = renderer.getContext();
     const dbg = gl.getExtension('WEBGL_debug_renderer_info');
@@ -260,6 +272,19 @@ export const RacingCanvas: React.FC<RacingCanvasProps> = ({
       isGameOver: false,
     };
 
+    let isGameOverTriggered = false;
+    const triggerGameOver = (winner?: string) => {
+      if (isGameOverTriggered) return;
+      isGameOverTriggered = true;
+      p1Sim.isGameOver = true;
+      p2Sim.isGameOver = true;
+      callbacksRef.current.onGameOver(winner);
+    };
+
+    let lastHudUpdateTime = 0;
+    let lastP1Lives = p1Sim.lives;
+    let lastP2Lives = p2Sim.lives;
+
     const _camTarget = new THREE.Vector3();
 
     sound.startEngine();
@@ -282,71 +307,72 @@ export const RacingCanvas: React.FC<RacingCanvasProps> = ({
     const animate = () => {
       animFrameId = requestAnimationFrame(animate);
 
-      if (isSoftware) {
-        const now = performance.now();
-        if (now - lastFrameTime < 30) return;
-        lastFrameTime = now;
-      }
-
-      const rawDt = clock.getDelta();
-      const dt = Math.min(rawDt, 0.05);
-
-      if (pausedRef.current) {
-        sound.updateEnginePitch(0, false);
-        return;
-      }
-
-      // --- COUNTDOWN FREEZE: 3, 2, 1, GO! ---
-      if (isCountdownRef.current) {
-        sound.updateEnginePitch(0.08, false);
-
-        // Keep cars poised at starting line with subtle idling vibration
-        const idleVibe = Math.sin(clock.getElapsedTime() * 30) * 0.01;
-        p1CarResult.root.position.set(p1Sim.x, idleVibe, 0);
-        p1CarResult.root.rotation.set(0, 0, 0);
-        camera1.position.set(p1Sim.x, 2.5, -6.8);
-        _camTarget.set(p1Sim.x, 1.2, 10);
-        camera1.lookAt(_camTarget);
-        camera1.fov = 65;
-        camera1.updateProjectionMatrix();
-
-        if (mode === 'battle' && p2CarResult) {
-          p2CarResult.root.position.set(p2Sim.x, idleVibe, 0);
-          p2CarResult.root.rotation.set(0, 0, 0);
-          camera2.position.set(p2Sim.x, 2.5, -6.8);
-          _camTarget.set(p2Sim.x, 1.2, 10);
-          camera2.lookAt(_camTarget);
-          camera2.fov = 65;
-          camera2.updateProjectionMatrix();
+      try {
+        if (isSoftware) {
+          const now = performance.now();
+          if (now - lastFrameTime < 30) return;
+          lastFrameTime = now;
         }
 
-        // Render starting grid viewports
-        const w = container.clientWidth;
-        const h = container.clientHeight;
-        if (mode === 'battle') {
-          const halfW = Math.floor(w / 2);
-          renderer.setScissorTest(true);
-          camera1.aspect = halfW / h;
-          camera1.updateProjectionMatrix();
-          renderer.setViewport(0, 0, halfW, h);
-          renderer.setScissor(0, 0, halfW, h);
-          renderer.render(scene, camera1);
+        const rawDt = clock.getDelta();
+        const dt = Math.max(0.001, Math.min(rawDt, 0.05));
 
-          camera2.aspect = halfW / h;
-          camera2.updateProjectionMatrix();
-          renderer.setViewport(halfW, 0, halfW, h);
-          renderer.setScissor(halfW, 0, halfW, h);
-          renderer.render(scene, camera2);
-        } else {
-          renderer.setScissorTest(false);
-          camera1.aspect = w / h;
-          camera1.updateProjectionMatrix();
-          renderer.setViewport(0, 0, w, h);
-          renderer.render(scene, camera1);
+        if (pausedRef.current) {
+          sound.updateEnginePitch(0, false);
+          return;
         }
-        checkCapture();
-        return;
-      }
+
+        // --- COUNTDOWN FREEZE: 3, 2, 1, GO! ---
+        if (isCountdownRef.current) {
+          sound.updateEnginePitch(0.08, false);
+
+          // Keep cars poised at starting line with subtle idling vibration
+          const idleVibe = Math.sin(clock.getElapsedTime() * 30) * 0.01;
+          p1CarResult.root.position.set(p1Sim.x, idleVibe, 0);
+          p1CarResult.root.rotation.set(0, 0, 0);
+          camera1.position.set(p1Sim.x, 2.5, -6.8);
+          _camTarget.set(p1Sim.x, 1.2, 10);
+          camera1.lookAt(_camTarget);
+          camera1.fov = 65;
+          camera1.updateProjectionMatrix();
+
+          if (mode === 'battle' && p2CarResult) {
+            p2CarResult.root.position.set(p2Sim.x, idleVibe, 0);
+            p2CarResult.root.rotation.set(0, 0, 0);
+            camera2.position.set(p2Sim.x, 2.5, -6.8);
+            _camTarget.set(p2Sim.x, 1.2, 10);
+            camera2.lookAt(_camTarget);
+            camera2.fov = 65;
+            camera2.updateProjectionMatrix();
+          }
+
+          // Render starting grid viewports with safe non-zero bounds
+          const safeW = Math.max(10, container.clientWidth || window.innerWidth || 300);
+          const safeH = Math.max(10, container.clientHeight || window.innerHeight || 200);
+          if (mode === 'battle') {
+            const halfW = Math.max(5, Math.floor(safeW / 2));
+            renderer.setScissorTest(true);
+            camera1.aspect = halfW / safeH;
+            camera1.updateProjectionMatrix();
+            renderer.setViewport(0, 0, halfW, safeH);
+            renderer.setScissor(0, 0, halfW, safeH);
+            renderer.render(scene, camera1);
+
+            camera2.aspect = halfW / safeH;
+            camera2.updateProjectionMatrix();
+            renderer.setViewport(halfW, 0, halfW, safeH);
+            renderer.setScissor(halfW, 0, halfW, safeH);
+            renderer.render(scene, camera2);
+          } else {
+            renderer.setScissorTest(false);
+            camera1.aspect = safeW / safeH;
+            camera1.updateProjectionMatrix();
+            renderer.setViewport(0, 0, safeW, safeH);
+            renderer.render(scene, camera1);
+          }
+          checkCapture();
+          return;
+        }
 
       const p1IsAnswering = answeringRef.current.p1;
       const p2IsAnswering = answeringRef.current.p2;
@@ -778,9 +804,8 @@ export const RacingCanvas: React.FC<RacingCanvasProps> = ({
             sound.playCrash();
 
             if (p1Sim.lives <= 0) {
-              p1Sim.isGameOver = true;
               p1Sim.lives = 0;
-              callbacksRef.current.onGameOver(mode === 'battle' ? 'Pemain 2 (Kanan)' : undefined);
+              triggerGameOver(mode === 'battle' ? 'Pemain 2 (Kanan)' : undefined);
             }
           }
         }
@@ -804,9 +829,8 @@ export const RacingCanvas: React.FC<RacingCanvasProps> = ({
             sound.playCrash();
 
             if (p2Sim.lives <= 0) {
-              p2Sim.isGameOver = true;
               p2Sim.lives = 0;
-              callbacksRef.current.onGameOver('Pemain 1 (Kiri)');
+              triggerGameOver('Pemain 1 (Kiri)');
             }
           }
         }
@@ -854,10 +878,9 @@ export const RacingCanvas: React.FC<RacingCanvasProps> = ({
         const allQuestionsAnswered = p1QuestionsAnsweredRef.current >= totalQuestions;
 
         // Finish condition: Both target KM reached AND all questions answered
-        if (kmReached && allQuestionsAnswered && !p1Sim.isGameOver) {
-          p1Sim.isGameOver = true;
+        if (kmReached && allQuestionsAnswered && !isGameOverTriggered) {
           sound.playVictory();
-          callbacksRef.current.onGameOver();
+          triggerGameOver();
         } else if (kmReached && !allQuestionsAnswered && !p1IsAnswering) {
           // If km reached but still has unanswered questions, trigger next question so player can finish
           callbacksRef.current.onTriggerQuestion('p1', Math.floor(clock.getElapsedTime()));
@@ -867,98 +890,111 @@ export const RacingCanvas: React.FC<RacingCanvasProps> = ({
         const p1Finished = p1Sim.distance >= targetDistanceMeters;
         const p2Finished = p2Sim && p2Sim.distance >= targetDistanceMeters;
 
-        if ((p1Finished || p2Finished) && !p1Sim.isGameOver) {
-          p1Sim.isGameOver = true;
+        if ((p1Finished || p2Finished) && !isGameOverTriggered) {
           sound.playVictory();
-          callbacksRef.current.onGameOver(
+          triggerGameOver(
             p1Sim.score >= p2Sim.score ? 'Pemain 1 (Kiri)' : 'Pemain 2 (Kanan)'
           );
         }
       }
 
-      callbacksRef.current.onUpdateP1((prev) => {
-        const gear = calculateGear(p1Sim.speed);
-        const p1BaseMax =
-          p1State.car.type === 'apex_gp' ? 365 :
-          p1State.car.type === 'ducati' ? 362 :
-          p1State.car.type === 'ktm' ? 358 :
-          p1State.car.type === 'honda' ? 356 : 350;
-        const { rpmPercent } = calculateRpm(p1Sim.speed, p1BaseMax);
-        const leanAngleDeg = Math.abs(calculateLeanAngleDeg(p1Sim.steerAngle));
+      // Throttle HUD state updates to ~15 Hz (or immediate on lives/finish) to avoid React re-render choke
+      const now = performance.now();
+      const livesChanged = p1Sim.lives !== lastP1Lives || p2Sim.lives !== lastP2Lives;
+      const shouldUpdateHud = (now - lastHudUpdateTime >= 66) || livesChanged || isGameOverTriggered;
 
-        return {
-          ...prev,
-          speed: Math.round(p1Sim.speed),
-          nitro: 0,
-          isNitroActive: false,
-          distance: Math.round(p1Sim.distance),
-          score: p1Sim.score,
-          lives: p1Sim.lives,
-          isGameOver: p1Sim.isGameOver,
-          isOffTrack: p1IsOffTrack,
-          gear,
-          rpmPercent,
-          leanAngleDeg,
-        };
-      });
+      if (shouldUpdateHud) {
+        lastHudUpdateTime = now;
+        lastP1Lives = p1Sim.lives;
+        lastP2Lives = p2Sim.lives;
 
-      if (mode === 'battle' && callbacksRef.current.onUpdateP2) {
-        callbacksRef.current.onUpdateP2((prev) => {
-          const p2BaseMax =
-            p2State?.car.type === 'apex_gp' ? 365 :
-            p2State?.car.type === 'ducati' ? 362 :
-            p2State?.car.type === 'ktm' ? 358 :
-            p2State?.car.type === 'honda' ? 356 : 350;
-          const gear = calculateGear(p2Sim.speed);
-          const { rpmPercent } = calculateRpm(p2Sim.speed, p2BaseMax);
-          const leanAngleDeg = Math.abs(calculateLeanAngleDeg(p2Sim.steerAngle));
+        callbacksRef.current.onUpdateP1((prev) => {
+          const gear = calculateGear(p1Sim.speed);
+          const p1BaseMax =
+            p1State.car.type === 'apex_gp' ? 365 :
+            p1State.car.type === 'ducati' ? 362 :
+            p1State.car.type === 'ktm' ? 358 :
+            p1State.car.type === 'honda' ? 356 : 350;
+          const { rpmPercent } = calculateRpm(p1Sim.speed, p1BaseMax);
+          const leanAngleDeg = Math.abs(calculateLeanAngleDeg(p1Sim.steerAngle));
 
           return {
             ...prev,
-            speed: Math.round(p2Sim.speed),
+            speed: Math.round(p1Sim.speed),
             nitro: 0,
             isNitroActive: false,
-            distance: Math.round(p2Sim.distance),
-            score: p2Sim.score,
-            lives: p2Sim.lives,
-            isGameOver: p2Sim.isGameOver,
-            isOffTrack: p2IsOffTrack,
+            distance: Math.round(p1Sim.distance),
+            score: p1Sim.score,
+            lives: p1Sim.lives,
+            isGameOver: p1Sim.isGameOver,
+            isOffTrack: p1IsOffTrack,
             gear,
             rpmPercent,
             leanAngleDeg,
           };
         });
+
+        if (mode === 'battle' && callbacksRef.current.onUpdateP2) {
+          callbacksRef.current.onUpdateP2((prev) => {
+            const p2BaseMax =
+              p2State?.car.type === 'apex_gp' ? 365 :
+              p2State?.car.type === 'ducati' ? 362 :
+              p2State?.car.type === 'ktm' ? 358 :
+              p2State?.car.type === 'honda' ? 356 : 350;
+            const gear = calculateGear(p2Sim.speed);
+            const { rpmPercent } = calculateRpm(p2Sim.speed, p2BaseMax);
+            const leanAngleDeg = Math.abs(calculateLeanAngleDeg(p2Sim.steerAngle));
+
+            return {
+              ...prev,
+              speed: Math.round(p2Sim.speed),
+              nitro: 0,
+              isNitroActive: false,
+              distance: Math.round(p2Sim.distance),
+              score: p2Sim.score,
+              lives: p2Sim.lives,
+              isGameOver: p2Sim.isGameOver,
+              isOffTrack: p2IsOffTrack,
+              gear,
+              rpmPercent,
+              leanAngleDeg,
+            };
+          });
+        }
       }
 
       // --- 5. RENDER VIEWPORTS: LEFT (P1) AND RIGHT (P2) FOR BATTLE ---
-      const w = container.clientWidth;
-      const h = container.clientHeight;
+      const safeW = Math.max(10, container.clientWidth || window.innerWidth || 300);
+      const safeH = Math.max(10, container.clientHeight || window.innerHeight || 200);
 
       if (mode === 'battle') {
-        const halfW = Math.floor(w / 2);
+        const halfW = Math.max(5, Math.floor(safeW / 2));
         renderer.setScissorTest(true);
 
         // --- LAYAR KIRI: Pemain 1 ---
-        camera1.aspect = halfW / h;
+        camera1.aspect = halfW / safeH;
         camera1.updateProjectionMatrix();
-        renderer.setViewport(0, 0, halfW, h);
-        renderer.setScissor(0, 0, halfW, h);
+        renderer.setViewport(0, 0, halfW, safeH);
+        renderer.setScissor(0, 0, halfW, safeH);
         renderer.render(scene, camera1);
 
         // --- LAYAR KANAN: Pemain 2 ---
-        camera2.aspect = halfW / h;
+        camera2.aspect = halfW / safeH;
         camera2.updateProjectionMatrix();
-        renderer.setViewport(halfW, 0, halfW, h);
-        renderer.setScissor(halfW, 0, halfW, h);
+        renderer.setViewport(halfW, 0, halfW, safeH);
+        renderer.setScissor(halfW, 0, halfW, safeH);
         renderer.render(scene, camera2);
       } else {
         // Solo: Full Screen
         renderer.setScissorTest(false);
-        camera1.aspect = w / h;
+        camera1.aspect = safeW / safeH;
         camera1.updateProjectionMatrix();
-        renderer.setViewport(0, 0, w, h);
+        renderer.setViewport(0, 0, safeW, safeH);
         renderer.render(scene, camera1);
       }
+    } catch (err) {
+      console.warn('Frame render error caught gracefully:', err);
+    }
 
       checkCapture();
     };
@@ -994,6 +1030,8 @@ export const RacingCanvas: React.FC<RacingCanvasProps> = ({
         p2TireSpray.dispose(scene);
       }
       renderer.dispose();
+      renderer.domElement.removeEventListener('webglcontextlost', handleContextLost);
+      renderer.domElement.removeEventListener('webglcontextrestored', handleContextRestored);
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
       }

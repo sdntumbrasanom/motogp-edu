@@ -103,7 +103,11 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
     const waUrl = cleanPhone
       ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`
       : `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    window.open(waUrl, '_blank');
+    try {
+      window.open(waUrl, '_blank', 'noopener,noreferrer');
+    } catch {
+      window.location.href = waUrl;
+    }
   };
 
   return (

@@ -174,47 +174,67 @@ export default function App() {
         return;
       }
 
+      // Prevent default browser shortcuts / history back / scroll on game keys during race
+      const isGameControlKey =
+        ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'a', 'A', 'd', 'D', 'w', 'W', 's', 'S', ' '].includes(e.key);
+
+      if (isGameControlKey && gameState === 'playing') {
+        e.preventDefault();
+      }
+
+      // Filter out auto-repeat from held keys to avoid React state update thrashing
+      if (e.repeat) {
+        return;
+      }
+
       // Player 1 controls (Solo: ArrowLeft / A for left, ArrowRight / D for right)
       if (gameMode === 'solo') {
         if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
-          setP1Controls((c: GameControls) => ({ ...c, steerLeft: true }));
+          setP1Controls((c: GameControls) => (c.steerLeft ? c : { ...c, steerLeft: true }));
         } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
-          setP1Controls((c: GameControls) => ({ ...c, steerRight: true }));
+          setP1Controls((c: GameControls) => (c.steerRight ? c : { ...c, steerRight: true }));
         }
       } else {
-        // Battle mode: P1 uses A / D, P2 uses ArrowLeft / ArrowRight
+        // Battle mode: P1 uses A / D, P2 uses ArrowLeft / ArrowRight (simultaneous, non-conflicting)
         if (e.key === 'a' || e.key === 'A') {
-          setP1Controls((c: GameControls) => ({ ...c, steerLeft: true }));
+          setP1Controls((c: GameControls) => (c.steerLeft ? c : { ...c, steerLeft: true }));
         } else if (e.key === 'd' || e.key === 'D') {
-          setP1Controls((c: GameControls) => ({ ...c, steerRight: true }));
+          setP1Controls((c: GameControls) => (c.steerRight ? c : { ...c, steerRight: true }));
         }
 
         if (e.key === 'ArrowLeft') {
-          setP2Controls((c: GameControls) => ({ ...c, steerLeft: true }));
+          setP2Controls((c: GameControls) => (c.steerLeft ? c : { ...c, steerLeft: true }));
         } else if (e.key === 'ArrowRight') {
-          setP2Controls((c: GameControls) => ({ ...c, steerRight: true }));
+          setP2Controls((c: GameControls) => (c.steerRight ? c : { ...c, steerRight: true }));
         }
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      const isGameControlKey =
+        ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'a', 'A', 'd', 'D', 'w', 'W', 's', 'S', ' '].includes(e.key);
+
+      if (isGameControlKey && gameState === 'playing') {
+        e.preventDefault();
+      }
+
       if (gameMode === 'solo') {
         if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
-          setP1Controls((c: GameControls) => ({ ...c, steerLeft: false }));
+          setP1Controls((c: GameControls) => (!c.steerLeft ? c : { ...c, steerLeft: false }));
         } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
-          setP1Controls((c: GameControls) => ({ ...c, steerRight: false }));
+          setP1Controls((c: GameControls) => (!c.steerRight ? c : { ...c, steerRight: false }));
         }
       } else {
         if (e.key === 'a' || e.key === 'A') {
-          setP1Controls((c: GameControls) => ({ ...c, steerLeft: false }));
+          setP1Controls((c: GameControls) => (!c.steerLeft ? c : { ...c, steerLeft: false }));
         } else if (e.key === 'd' || e.key === 'D') {
-          setP1Controls((c: GameControls) => ({ ...c, steerRight: false }));
+          setP1Controls((c: GameControls) => (!c.steerRight ? c : { ...c, steerRight: false }));
         }
 
         if (e.key === 'ArrowLeft') {
-          setP2Controls((c: GameControls) => ({ ...c, steerLeft: false }));
+          setP2Controls((c: GameControls) => (!c.steerLeft ? c : { ...c, steerLeft: false }));
         } else if (e.key === 'ArrowRight') {
-          setP2Controls((c: GameControls) => ({ ...c, steerRight: false }));
+          setP2Controls((c: GameControls) => (!c.steerRight ? c : { ...c, steerRight: false }));
         }
       }
     };
@@ -225,8 +245,8 @@ export default function App() {
       setP2Controls({ steerLeft: false, steerRight: false, accelerate: false, brake: false, nitro: false });
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('keydown', handleKeyDown, { passive: false });
+    window.addEventListener('keyup', handleKeyUp, { passive: false });
     window.addEventListener('blur', handleBlur);
 
     return () => {
@@ -234,7 +254,7 @@ export default function App() {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [gameMode]);
+  }, [gameMode, gameState]);
 
   // Monitor fullscreen change events
   useEffect(() => {
@@ -551,6 +571,9 @@ export default function App() {
           {/* Top Center Pause / Menu Bar, Weather & Symbol-Only Fullscreen Dock */}
           <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-md p-1.5 rounded-xl border border-slate-700/80 shadow-2xl">
             <button
+              type="button"
+              tabIndex={-1}
+              onFocus={(e) => e.currentTarget.blur()}
               onClick={() => {
                 countdownTimerRef.current.forEach(clearTimeout);
                 countdownTimerRef.current = [];
@@ -562,6 +585,9 @@ export default function App() {
               Menu
             </button>
             <button
+              type="button"
+              tabIndex={-1}
+              onFocus={(e) => e.currentTarget.blur()}
               onClick={() => {
                 const nextWeather: Record<WeatherType, WeatherType> = {
                   cerah: 'mendung',
@@ -582,6 +608,9 @@ export default function App() {
             </button>
             {/* Symbol-Only Fullscreen Button */}
             <button
+              type="button"
+              tabIndex={-1}
+              onFocus={(e) => e.currentTarget.blur()}
               onClick={handleToggleFullscreen}
               className="pointer-events-auto p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyan-500/60 text-cyan-300 hover:text-white transition shadow flex items-center justify-center cursor-pointer"
               title={isFullscreen ? 'Keluar Layar Penuh' : 'Mode Layar Penuh'}
