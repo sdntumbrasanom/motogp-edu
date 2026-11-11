@@ -62,6 +62,7 @@ export const TeacherPortalModal: React.FC<TeacherPortalModalProps> = ({
   const [showAppsScriptUrl, setShowAppsScriptUrl] = useState<boolean>(false);
   const [copiedScript, setCopiedScript] = useState<boolean>(false);
   const [isSyncingAll, setIsSyncingAll] = useState<boolean>(false);
+  const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
 
   // Load saved teacher profile (name & phone)
   React.useEffect(() => {
@@ -180,8 +181,6 @@ export const TeacherPortalModal: React.FC<TeacherPortalModalProps> = ({
     document.body.removeChild(link);
   };
 
-  const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
-
   const handleTestConnection = async () => {
     const url = appsScriptUrl.trim();
     if (!url) {
@@ -207,45 +206,51 @@ export const TeacherPortalModal: React.FC<TeacherPortalModalProps> = ({
       // 1. Simpan URL dulu
       sheetService.setAppsScriptUrl(url);
 
-      // 2. Kirim ping test token
-      const testToken = 'TEST-PING';
-      const testRoom: TeacherRoom = {
-        token: testToken,
-        title: 'Uji Koneksi Database',
-        teacherName: 'Sistem Uji',
-        spreadsheetUrl: '',
-        questions: [
-          {
-            id: 't-1',
-            text: 'Tes koneksi database Google Spreadsheet',
-            correctAnswer: 'Berhasil',
-            options: ['Berhasil', 'Gagal', 'Pending', 'Error'],
-          },
-        ],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
+      // 2. Uji langsung koneksi fetch ke URL
+      const pingUrl = `${url}${url.includes('?') ? '&' : '?'}action=getAllRooms`;
+      let pingSuccess = false;
+      let pingErrorDetail = '';
 
-      const syncOk = await sheetService.syncRoomToAppsScript(testRoom, url);
-      // Coba fetch balik
-      const fetched = await sheetService.fetchRoomFromAppsScript(testToken);
+      try {
+        const pingRes = await fetch(pingUrl, { redirect: 'follow' });
+        if (pingRes.ok) {
+          const json = await pingRes.json().catch(() => null);
+          if (json && json.status === 'success') {
+            pingSuccess = true;
+          }
+        } else if (pingRes.status === 403 || pingRes.status === 401) {
+          pingErrorDetail = 'AKSES DITOLAK (HTTP 403). Di pengaturan Deploy Google Apps Script, opsi "Who has access (Siapa yang memiliki akses)" saat ini belum disetel ke "Anyone (Siapa saja)".';
+        } else {
+          pingErrorDetail = `Server Google merespon dengan status ${pingRes.status}.`;
+        }
+      } catch (e) {
+        // Coba JSONP
+        try {
+          const jsonpData = await (sheetService as any).fetchViaJsonp(pingUrl);
+          if (jsonpData && jsonpData.status === 'success') {
+            pingSuccess = true;
+          }
+        } catch {
+          pingErrorDetail = 'Gagal mengakses URL. Pastikan deployment di Apps Script disetel "Who has access: Anyone (Siapa saja)".';
+        }
+      }
 
-      if (fetched || syncOk) {
+      if (pingSuccess) {
         setStatusMessage({
           type: 'success',
-          text: '🎉 KONEKSI BERHASIL! Database Google Spreadsheet Anda terhubung aktif! Token dan soal akan tersimpan otomatis dan bisa dibuka di semua HP/laptop siswa.',
+          text: '🎉 KONEKSI BERHASIL! Database Google Spreadsheet Anda terhubung aktif! Token dan soal kini otomatis tersimpan di Google Spreadsheet Anda dan dapat dibuka oleh seluruh siswa dari perangkat mana pun.',
         });
       } else {
         setStatusMessage({
           type: 'error',
-          text: '⚠️ Respon belum diterima. Pastikan saat Deploy di Apps Script: "Who has access (Siapa yang memiliki akses)" dipilih "Anyone (Siapa saja)".',
+          text: `⚠️ PENTING: ${pingErrorDetail || 'Koneksi belum dapat membaca database.'} Solusi: Buka Google Apps Script > Klik "Deploy" (Terapkan) > "Manage deployments" (Kelola deployment) > Edit (ikon pensil) > Ubah "Who has access" menjadi "Anyone" (Siapa saja) > Klik Deploy.`,
         });
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setStatusMessage({
         type: 'error',
-        text: 'Gagal menghubungi Apps Script: ' + msg + '. Pastikan URL berakhiran /exec dan akses disetel "Anyone".',
+        text: 'Gagal menghubungi Apps Script: ' + msg,
       });
     } finally {
       setIsTestingConnection(false);

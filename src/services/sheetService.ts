@@ -2,14 +2,13 @@ import { Question, TeacherRoom } from '../types/game';
 
 // Storage keys
 const ROOMS_STORAGE_KEY = 'apex_racer_teacher_rooms_v1';
-export const APPS_SCRIPT_STORAGE_KEY = 'https://script.google.com/macros/s/AKfycbysh2aWp6i82VQ3igZxiJB2mrpHugRW2mSFvXnRdn8AOEzBhzVrmQzWSok_lmx3ovebuQ/exec';
+export const APPS_SCRIPT_STORAGE_KEY = 'apex_apps_script_url';
 
 /**
  * DEFAULT_APPS_SCRIPT_URL:
- * Anda dapat menempelkan URL Web App Google Apps Script (/exec) Anda langsung di sini
- * atau memasukkannya melalui menu "Portal Guru" > tab "Database Apps Script".
+ * URL Aplikasi Web Google Apps Script terintegrasi resmi dari guru
  */
-export const DEFAULT_APPS_SCRIPT_URL = '';
+export const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbysh2aWp6i82VQ3igZxiJB2mrpHugRW2mSFvXnRdn8AOEzBhzVrmQzWSok_lmx3ovebuQ/exec';
 
 // Default Question Banks for immediate play without needing custom sheets
 export const DEFAULT_QUESTION_PACKS: Record<string, { title: string; teacher: string; questions: Question[] }> = {

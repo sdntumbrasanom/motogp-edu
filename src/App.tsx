@@ -146,12 +146,24 @@ export default function App() {
     nitro: false,
   });
 
-  // Load question bank on token change
+  // Load question bank on token change (with local cache + async cloud fallback)
   useEffect(() => {
+    let isCancelled = false;
     const qData = sheetService.getQuestionsByToken(activeToken);
     if (qData) {
       setQuestionBank(qData.questions);
+      return;
     }
+
+    // Fallback: fetch from Google Apps Script database if player is on another device
+    sheetService.getQuestionsByTokenAsync(activeToken).then((cloudRes) => {
+      if (isCancelled || !cloudRes) return;
+      setQuestionBank(cloudRes.questions);
+    });
+
+    return () => {
+      isCancelled = true;
+    };
   }, [activeToken]);
 
   // Global Keyboard Event Handlers
@@ -278,7 +290,16 @@ export default function App() {
     }
 
     const qData = sheetService.getQuestionsByToken(setup.token);
-    const questions = qData ? qData.questions : [];
+    const questions = qData ? qData.questions : (questionBank.length > 0 ? questionBank : []);
+    if (questions.length === 0) {
+      sheetService.getQuestionsByTokenAsync(setup.token).then((cloudRes) => {
+        if (cloudRes && cloudRes.questions.length > 0) {
+          setQuestionBank(cloudRes.questions);
+          p1DeckRef.current = sheetService.shuffleArray([...cloudRes.questions]);
+          p2DeckRef.current = sheetService.shuffleArray([...cloudRes.questions]);
+        }
+      });
+    }
     setQuestionBank(questions);
 
     // Initialize independent randomized question decks for P1 and P2 (anti-cheat)
