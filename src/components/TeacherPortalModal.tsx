@@ -387,8 +387,22 @@ export const TeacherPortalModal: React.FC<TeacherPortalModalProps> = ({
                 <KeyRound className="w-4 h-4" /> Masuk ke Portal Guru
               </button>
 
-              <div className="mt-2 p-3 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 text-center">
-                Petunjuk: Masukkan <strong className="text-indigo-300">Username</strong> | dan <strong className="text-indigo-300">Password</strong>
+              {/* 1-Click Fast Login for Teacher Convenience */}
+              <button
+                type="button"
+                onClick={() => {
+                  setUsername('guru');
+                  setPassword('guruhebat');
+                  setIsLoggedIn(true);
+                  setLoginError('');
+                }}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 font-bold text-xs transition border border-indigo-500/40 cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-4 h-4 text-amber-400" /> Masuk Langsung (1-Klik Tanpa Ketik)
+              </button>
+
+              <div className="mt-1 p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px] text-slate-300 text-center">
+                Akun Guru Default: Username: <strong className="text-cyan-300 font-mono">guru</strong> &nbsp;|&nbsp; Password: <strong className="text-cyan-300 font-mono">guruhebat</strong>
               </div>
             </form>
           </div>
