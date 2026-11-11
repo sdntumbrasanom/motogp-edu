@@ -51,7 +51,7 @@ export const GameSetupModal: React.FC<GameSetupModalProps> = ({
   onClose,
   onStartGame,
   initialMode,
-  initialToken = 'BALAP-KILAT',
+  initialToken = 'GURU-4682',
   initialDifficulty = 'medium',
   initialCircuit = 'mandalika',
   initialWeather = 'cerah',
@@ -248,12 +248,12 @@ export const GameSetupModal: React.FC<GameSetupModalProps> = ({
                   type="text"
                   value={token}
                   onChange={(e) => setToken(e.target.value.toUpperCase())}
-                  placeholder="Masukkan Kode Token (contoh: GURU-4821)"
+                  placeholder="Masukkan Kode Token (contoh: MAT-SMART)"
                   className="flex-1 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 font-mono font-bold text-cyan-300 placeholder-slate-600 focus:outline-none focus:border-cyan-400 text-sm uppercase tracking-wider"
                 />
 
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {['BALAP-KILAT', 'MAT-SMART', 'IPA-GENIUS', 'DEFAULT'].map((preset) => (
+                  {['GURU-4682', 'MAT-SMART', 'IPA-GENIUS', 'DEFAULT'].map((preset) => (
                     <button
                       key={preset}
                       type="button"

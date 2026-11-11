@@ -67,7 +67,7 @@ export default function App() {
   // Game configuration
   const [gameMode, setGameMode] = useState<GameMode>('solo');
   const [difficulty, setDifficulty] = useState<GameDifficulty>('medium');
-  const [activeToken, setActiveToken] = useState<string>('BALAP-KILAT');
+  const [activeToken, setActiveToken] = useState<string>('GURU-4682');
   const [questionBank, setQuestionBank] = useState<Question[]>([]);
   const [winnerName, setWinnerName] = useState<string | undefined>();
 

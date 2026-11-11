@@ -19,7 +19,7 @@ const INITIAL_GLOBAL_RECORDS: LeaderboardEntry[] = [
   {
     id: 'lead-2',
     playerName: 'Marc "Ant" Marquez',
-    token: 'BALAP-KILAT',
+    token: 'GURU-4682',
     mode: 'solo',
     score: 4620,
     maxSpeedKmH: 365,
@@ -45,7 +45,7 @@ const INITIAL_GLOBAL_RECORDS: LeaderboardEntry[] = [
   {
     id: 'lead-4',
     playerName: 'Brad Binder (Sprint King)',
-    token: 'BALAP-KILAT',
+    token: 'GURU-4682',
     mode: 'battle',
     score: 3880,
     maxSpeedKmH: 358,
